@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>JNP Cargo Movers - Material Receipt Log</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    input, select, textarea { font-size: 16px !important; }
+    .autocomplete-list { max-height: 200px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    body { padding-bottom: env(safe-area-inset-bottom, 25px); }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 p-3 sm:p-6" onclick="closeAllDropdowns()">
+  <div class="max-w-md mx-auto bg-white shadow-xl rounded-2xl p-4 sm:p-5 border border-slate-200" onclick="event.stopPropagation()">
+    
+    <!-- Top Bar with Logo & Navigation -->
+    <div class="border-b border-slate-200 pb-3 mb-4 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="flex-shrink-0">
+          <img 
+            id="brandLogo"
+            src="logo.png" 
+            alt="JNP Cargo Movers" 
+            class="h-11 w-auto object-contain"
+            onerror="document.getElementById('brandLogo').classList.add('hidden'); document.getElementById('brandFallback').classList.remove('hidden');"
+          />
+          <div id="brandFallback" class="hidden h-11 w-14 bg-teal-950 rounded-xl flex flex-col items-center justify-center text-white shadow-sm">
+            <span class="font-black text-sm italic tracking-tighter leading-none">JNP</span>
+            <span class="text-[7px] font-bold text-teal-300 tracking-wider">DEPOT</span>
+          </div>
+        </div>
+        <div class="border-l border-slate-200 pl-2.5">
+          <h1 class="text-xs sm:text-sm font-extrabold text-teal-900 tracking-tight leading-tight uppercase">MATERIAL INWARD</h1>
+          <p class="text-[10px] text-slate-500 font-semibold tracking-wider">मटेरियल आवक (रसीद) लॉग</p>
+        </div>
+      </div>
+      <button type="button" onclick="fetchMasters()" class="text-xs text-teal-800 font-bold hover:underline py-1 px-2.5 rounded-lg bg-teal-50 border border-teal-200">↻ Sync</button>
+    </div>
+
+    <!-- Active Form -->
+    <form id="receiptForm" onsubmit="handleFormSubmit(event)" class="space-y-3" autocomplete="off">
+      
+      <!-- Received By & Date -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Received By *</label>
+          <select id="receiverSelect" onchange="toggleCustomReceiver()" required class="w-full border rounded-xl p-2.5 bg-slate-50 font-medium">
+            <option value="">Select Staff...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Inward Date *</label>
+          <input type="date" id="receiptDate" required class="w-full border rounded-xl p-2.5 bg-slate-50 font-semibold text-slate-800" />
+        </div>
+      </div>
+      <input type="text" id="receiverCustom" placeholder="Enter receiver name" class="hidden w-full border border-teal-400 rounded-xl p-2.5 bg-teal-50 font-medium" />
+
+      <!-- Supplier / Vendor -->
+      <div class="relative">
+        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
+          1. Supplier / Vendor / विक्रेता *
+        </label>
+        <input 
+          type="text" 
+          id="supplierInput" 
+          required 
+          placeholder="Vendor name (e.g. Castrol Distributor, Local Hardware)" 
+          class="w-full border rounded-xl p-2.5 bg-slate-50 font-semibold focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
+          oninput="filterOptions('supplier', this.value)"
+          onfocus="filterOptions('supplier', this.value)"
+        />
+        <div id="supplierDropdown" class="autocomplete-list hidden absolute z-30 w-full bg-white border border-slate-300 rounded-xl shadow-2xl mt-1"></div>
+      </div>
+
+      <!-- Invoice / Challan No & Category -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Invoice / Challan No</label>
+          <input type="text" id="invoiceNo" placeholder="Bill or Challan #" class="w-full border rounded-xl p-2.5 bg-slate-50 font-medium uppercase" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Category / श्रेणी *</label>
+          <select id="categorySelect" required class="w-full border rounded-xl p-2.5 bg-slate-50 font-semibold text-xs text-slate-800">
+            <option value="Vehicle Spares">Vehicle Spares (स्पेयर)</option>
+            <option value="Workshop Tools">Workshop Tools (टूल्स)</option>
+            <option value="Oils & Lubricants">Oils & Lubricants (तेल)</option>
+            <option value="Safety & Fleet Gear">Safety & Fleet Gear (तिरपाल/रस्सी)</option>
+            <option value="Electrical & Lights">Electrical & Lights (वायरिंग)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Item Name / Spares / Tools -->
+      <div class="relative">
+        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
+          2. Item Name / सामान का नाम *
+        </label>
+        <input 
+          type="text" 
+          id="itemInput" 
+          required 
+          placeholder="e.g. Hydraulic Jack 20T, 15W40 Oil Drum, Brake Shoe" 
+          class="w-full border rounded-xl p-2.5 bg-slate-50 font-semibold focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
+          oninput="filterOptions('item', this.value)"
+          onfocus="filterOptions('item', this.value)"
+        />
+        <div id="itemDropdown" class="autocomplete-list hidden absolute z-30 w-full bg-white border border-slate-300 rounded-xl shadow-2xl mt-1"></div>
+      </div>
+
+      <!-- Item Specifications / Part Details -->
+      <div>
+        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">
+          3. Details / Specifications (Brand, Size, Part #)
+        </label>
+        <input type="text" id="itemDetails" placeholder="e.g. Taparia 32mm spanner, Tata genuine brake shoe" class="w-full border rounded-xl p-2.5 bg-slate-50 font-medium" />
+      </div>
+
+      <!-- Quantity, Measurement Unit & Unit Cost -->
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Qty (मात्रा) *</label>
+          <input type="number" step="any" id="quantity" oninput="calculateTotal()" required placeholder="e.g. 10" class="w-full border rounded-xl p-2 bg-slate-50 font-bold text-teal-950" />
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Unit (इकाई) *</label>
+          <select id="unitSelect" required class="w-full border rounded-xl p-2 bg-slate-50 font-semibold text-xs">
+            <option value="Nos">Nos (नग)</option>
+            <option value="Ltr">Ltr (लीटर)</option>
+            <option value="Kg">Kg (किलो)</option>
+            <option value="Set">Set (सेट)</option>
+            <option value="Box">Box (बॉक्स)</option>
+            <option value="Mtr">Mtr (मीटर)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Rate ₹ (दर)</label>
+          <input type="number" step="any" id="unitCost" oninput="calculateTotal()" placeholder="e.g. 450" class="w-full border rounded-xl p-2 bg-slate-50 font-semibold text-xs" />
+        </div>
+      </div>
+
+      <!-- Dynamic Value Banner -->
+      <div class="flex justify-between items-center px-3 py-2 bg-teal-50/80 border border-teal-200 rounded-xl text-xs">
+        <span class="text-teal-900 font-semibold">Total Inward Value:</span>
+        <span id="totalDisplay" class="font-extrabold text-teal-950 text-sm">₹0.00</span>
+      </div>
+
+      <!-- Storage Depot Location & Condition -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div class="relative">
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Storage Location *</label>
+          <input 
+            type="text" 
+            id="locationInput" 
+            required 
+            placeholder="Rack / Locker / Shed" 
+            class="w-full border rounded-xl p-2.5 bg-slate-50 font-medium focus:bg-white focus:ring-2 focus:ring-teal-500"
+            oninput="filterOptions('location', this.value)"
+            onfocus="filterOptions('location', this.value)"
+          />
+          <div id="locationDropdown" class="autocomplete-list hidden absolute z-30 w-full bg-white border border-slate-300 rounded-xl shadow-2xl mt-1"></div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Condition Status</label>
+          <select id="conditionStatus" class="w-full border rounded-xl p-2.5 bg-slate-50 font-medium text-xs">
+            <option value="Brand New">Brand New / नया</option>
+            <option value="Refurbished/Serviced">Refurbished / रीकंडीशन्ड</option>
+            <option value="Returned from Route">Returned / वापस आया</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Remark -->
+      <div>
+        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Remark / टिप्पणी</label>
+        <input type="text" id="remarkInput" placeholder="PO reference, warranty details, driver return note" class="w-full border rounded-xl p-2.5 bg-slate-50 font-medium" />
+      </div>
+
+      <!-- Submit Button -->
+      <div class="pt-2">
+        <button type="submit" id="saveBtn" class="w-full py-3 bg-teal-800 active:bg-teal-950 text-white font-bold text-sm rounded-xl shadow-lg transition">
+          Record Inward Entry & Send WhatsApp
+        </button>
+      </div>
+    </form>
+
+    <!-- WhatsApp Share Panel -->
+    <div id="shareSection" class="hidden mt-4 p-4 border border-emerald-300 bg-emerald-50 rounded-xl space-y-2.5">
+      <div class="flex items-center gap-2">
+        <span class="text-lg">✅</span>
+        <h3 class="text-xs font-bold text-emerald-950 uppercase tracking-wide">Saved to Depot DB!</h3>
+      </div>
+
+      <button type="button" id="shareBtn" onclick="handleWhatsAppShare()" class="w-full py-3 bg-emerald-600 active:bg-emerald-800 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow">
+        <span>📲</span> Share Material Receipt on WhatsApp
+      </button>
+
+      <button type="button" onclick="resetForm()" class="w-full py-2.5 bg-slate-200 active:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl transition">
+        ➕ New Inward Entry
+      </button>
+    </div>
+
+    <div id="statusToast" class="hidden mt-3 text-center text-xs font-bold p-2.5 rounded-xl"></div>
+  </div>
+
+  <script>
+    // Live Web App URL for JNP_Material_Receipt_DB
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwHrbVzgNAGy_dEKJvbbPO2JieXgviBgQVDLmS--ygaR6YyC7MEZsk1mzfiWog_W5mdAw/exec";
+
+    let lastSavedData = null;
+
+    let masterData = {
+      receivers: ["Sumit", "Ganesh", "Atul", "Ganesh HO"],
+      suppliers: ["Castrol Lubricants Distributor", "Tata Genuine Spares", "National Hardware & Tools", "Local Garage Vendor", "Fleet Depot Return"],
+      items: ["Hydraulic Jack 20T", "Wheel Spanner (Pana)", "Engine Oil 15W40", "Grease AP3 18Kg", "Nylon Tirpal 32x20", "Heavy Duty Lashing Belts", "Brake Shoe Assembly", "Air Filter", "Coolant 5Ltr", "LED Tail Lamp"],
+      locations: ["Main Store Rack A", "Main Store Rack B", "Tool Room Locker", "Oil Drum Yard", "Open Shed Ground"]
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('receiptDate').value = today;
+      populateReceivers(masterData.receivers);
+      fetchMasters();
+    });
+
+    async function fetchMasters() {
+      try {
+        const res = await fetch(SCRIPT_URL, { method: "GET" });
+        if (res.ok) {
+          const liveData = await res.json();
+          if (liveData && liveData.status === "success") {
+            if (liveData.receivers?.length) { masterData.receivers = liveData.receivers; populateReceivers(masterData.receivers); }
+            if (liveData.suppliers?.length) masterData.suppliers = liveData.suppliers;
+            if (liveData.items?.length) masterData.items = liveData.items;
+            if (liveData.locations?.length) masterData.locations = liveData.locations;
+            showToast("Synced with Google Sheet Masters!", "emerald");
+            setTimeout(hideToast, 2000);
+          }
+        }
+      } catch (e) {
+        console.warn("Using offline master cache", e);
+      }
+    }
+
+    function populateReceivers(list) {
+      const select = document.getElementById('receiverSelect');
+      const cur = select.value;
+      select.innerHTML = '<option value="">Select Staff...</option>';
+      (list || []).forEach(s => select.innerHTML += `<option value="${s}">${s}</option>`);
+      select.innerHTML += '<option value="__OTHER__">➕ Other / Enter Name</option>';
+      if (cur) select.value = cur;
+    }
+
+    function toggleCustomReceiver() {
+      const sel = document.getElementById('receiverSelect');
+      const inp = document.getElementById('receiverCustom');
+      if (sel.value === "__OTHER__") {
+        inp.classList.remove('hidden'); inp.required = true; inp.focus();
+      } else {
+        inp.classList.add('hidden'); inp.required = false; inp.value = '';
+      }
+    }
+
+    function calculateTotal() {
+      const rate = Number(document.getElementById('unitCost').value) || 0;
+      const qty = Number(document.getElementById('quantity').value) || 0;
+      const total = rate * qty;
+      document.getElementById('totalDisplay').innerText = `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function filterOptions(type, query) {
+      closeAllDropdowns();
+      const dropdownEl = document.getElementById(type + 'Dropdown');
+      
+      let items = [];
+      if (type === 'supplier') items = masterData.suppliers;
+      else if (type === 'item') items = masterData.items;
+      else if (type === 'location') items = masterData.locations;
+
+      const q = query.replace(/\s+/g, '').toUpperCase();
+      const matched = q ? items.filter(i => i.toUpperCase().includes(q)) : items;
+
+      let html = '';
+      if (matched.length > 0) {
+        matched.forEach(item => {
+          html += `
+            <div class="px-3 py-2.5 text-xs font-semibold hover:bg-teal-50 cursor-pointer border-b border-slate-100 flex justify-between items-center"
+                 onclick="selectOption('${type}', '${item.replace(/'/g, "\\'")}')">
+              <span>${item}</span>
+              <span class="text-[10px] text-slate-400">Master</span>
+            </div>`;
+        });
+      }
+
+      const exactExists = items.some(i => i.toUpperCase() === q);
+      if (q && !exactExists) {
+        html += `
+          <div class="px-3 py-2.5 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 cursor-pointer flex justify-between items-center"
+               onclick="selectOption('${type}', '${q.replace(/'/g, "\\'")}')">
+            <span>➕ Use "${q}"</span>
+            <span class="text-[10px] bg-teal-200 text-teal-900 px-1.5 py-0.5 rounded">New</span>
+          </div>`;
+      }
+
+      dropdownEl.innerHTML = html;
+      dropdownEl.classList.remove('hidden');
+    }
+
+    function selectOption(type, value) {
+      document.getElementById(type + 'Input').value = value;
+      closeAllDropdowns();
+    }
+
+    function closeAllDropdowns() {
+      ['supplierDropdown', 'itemDropdown', 'locationDropdown'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+      });
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      closeAllDropdowns();
+
+      const recSel = document.getElementById('receiverSelect');
+      const receivedBy = recSel.value === "__OTHER__" ? document.getElementById('receiverCustom').value.trim() : recSel.value;
+      const qtyVal = Number(document.getElementById('quantity').value) || 0;
+      const rateVal = Number(document.getElementById('unitCost').value) || 0;
+
+      if (qtyVal <= 0) {
+        alert("Please enter a valid Quantity.");
+        return;
+      }
+
+      const totalValue = rateVal * qtyVal;
+
+      lastSavedData = {
+        receiptDate: document.getElementById('receiptDate').value,
+        receivedBy: receivedBy,
+        supplier: document.getElementById('supplierInput').value.trim(),
+        invoiceNo: document.getElementById('invoiceNo').value.trim() || "-",
+        category: document.getElementById('categorySelect').value,
+        itemName: document.getElementById('itemInput').value.trim(),
+        itemDetails: document.getElementById('itemDetails').value.trim() || "-",
+        quantity: qtyVal,
+        measurementUnit: document.getElementById('unitSelect').value,
+        unitCost: rateVal,
+        totalValue: totalValue,
+        location: document.getElementById('locationInput').value.trim(),
+        conditionStatus: document.getElementById('conditionStatus').value,
+        remark: document.getElementById('remarkInput').value.trim() || "-"
+      };
+
+      const saveBtn = document.getElementById('saveBtn');
+      saveBtn.disabled = true;
+      saveBtn.innerText = "Saving to Google Sheet...";
+
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(lastSavedData)
+        });
+
+        document.getElementById('receiptForm').classList.add('opacity-50', 'pointer-events-none');
+        document.getElementById('shareSection').classList.remove('hidden');
+        showToast("Saved to Depot DB!", "emerald");
+      } catch (err) {
+        document.getElementById('receiptForm').classList.add('opacity-50', 'pointer-events-none');
+        document.getElementById('shareSection').classList.remove('hidden');
+        showToast("Saved to Sheet! (Check live rows).", "emerald");
+      }
+    }
+
+    function handleWhatsAppShare() {
+      if (!lastSavedData) return;
+
+      const msg = 
+`📥 *MATERIAL INWARD / RECEIPT VOUCHER*
+━━━━━━━━━━━━━━━━━━
+🏢 *Supplier:* ${lastSavedData.supplier}
+📄 *Bill/Challan:* ${lastSavedData.invoiceNo}
+📦 *Category:* ${lastSavedData.category}
+🏷️ *Item Received:* ${lastSavedData.itemName}
+📋 *Specs:* ${lastSavedData.itemDetails}
+📊 *Quantity:* ${lastSavedData.quantity} ${lastSavedData.measurementUnit}
+💰 *Total Value:* ₹${lastSavedData.totalValue} (₹${lastSavedData.unitCost} / ${lastSavedData.measurementUnit})
+📍 *Storage Rack:* ${lastSavedData.location}
+🛡️ *Condition:* ${lastSavedData.conditionStatus}
+📅 *Inward Date:* ${lastSavedData.receiptDate}
+📝 *Remark:* ${lastSavedData.remark}
+━━━━━━━━━━━━━━━━━━
+👷 *Received By:* ${lastSavedData.receivedBy}`;
+
+      window.location.href = "whatsapp://send?text=" + encodeURIComponent(msg);
+      document.getElementById('shareBtn').innerText = "✓ Sent to WhatsApp (Tap to re-send)";
+    }
+
+    function resetForm() {
+      document.getElementById('receiptForm').reset();
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('receiptDate').value = today;
+      document.getElementById('totalDisplay').innerText = "₹0.00";
+      document.getElementById('receiptForm').classList.remove('opacity-50', 'pointer-events-none');
+      document.getElementById('shareSection').classList.add('hidden');
+      document.getElementById('receiverCustom').classList.add('hidden');
+      document.getElementById('receiverCustom').required = false;
+
+      const saveBtn = document.getElementById('saveBtn');
+      saveBtn.disabled = false;
+      saveBtn.innerText = "Record Inward Entry & Send WhatsApp";
+      hideToast();
+      fetchMasters();
+    }
+
+    function showToast(text, color) {
+      const toast = document.getElementById('statusToast');
+      toast.className = `mt-3 text-center text-xs font-bold p-2.5 rounded-xl bg-${color}-100 text-${color}-800`;
+      toast.innerText = text;
+      toast.classList.remove('hidden');
+    }
+
+    function hideToast() {
+      document.getElementById('statusToast').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
